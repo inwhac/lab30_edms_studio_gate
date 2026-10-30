@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LABS Studio 진입 게이트 — 공개 범위 설정 (프로토타입)</title>
+<style>
+  :root{
+    --bg:#eef0f4; --panel:#ffffff;
+    --ink:#1c2127; --ink-2:#5a616c; --ink-3:#8b92a0;
+    --line:#e4e7ed; --line-2:#d3d8e0;
+    --accent:#3b5bdb; --accent-weak:#eef1fd; --accent-ink:#2b43a8;
+    --dark:#20242e; --dark-hover:#2d323e;
+    --warn-bg:#fbf3e4; --warn-line:#e9cf9a; --warn-ink:#8a5a0b;
+    --danger:#c0392b;
+    --radius:12px; --radius-sm:8px;
+    --shadow:0 1px 2px rgba(20,24,33,.06), 0 8px 24px rgba(20,24,33,.08);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo","Malgun Gothic","맑은 고딕",sans-serif;
+    background:var(--bg); color:var(--ink);
+    -webkit-font-smoothing:antialiased; line-height:1.6;
+    min-height:100vh; padding:28px 16px 80px;
+  }
+
+  /* ── 시연용 데모 컨트롤 ───────────────────────── */
+  .demo-bar{
+    max-width:600px; margin:0 auto 20px; background:var(--panel);
+    border:1px dashed var(--line-2); border-radius:var(--radius);
+    padding:14px 18px;
+  }
+  .demo-bar h2{
+    margin:0 0 10px; font-size:12px; font-weight:600; letter-spacing:.02em;
+    color:var(--ink-3);
+  }
+  .demo-row{display:flex; flex-wrap:wrap; gap:18px 26px; align-items:center}
+  .demo-field{display:flex; align-items:center; gap:10px}
+  .demo-field > span{font-size:13px; color:var(--ink-2)}
+  .seg{display:inline-flex; background:#f1f3f7; border-radius:8px; padding:3px}
+  .seg button{
+    border:0; background:transparent; font:inherit; font-size:13px;
+    padding:5px 12px; border-radius:6px; color:var(--ink-2); cursor:pointer;
+  }
+  .seg button[aria-pressed="true"]{background:var(--panel); color:var(--ink); box-shadow:0 1px 2px rgba(20,24,33,.12)}
+  .demo-reset{margin-left:auto; border:0; background:none; color:var(--accent); font:inherit; font-size:13px; cursor:pointer}
+
+  /* ── 게이트 패널 ─────────────────────────────── */
+  .gate{
+    max-width:600px; margin:0 auto; background:var(--panel);
+    border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow);
+    overflow:hidden;
+  }
+  .gate-head{padding:28px 32px 20px; border-bottom:1px solid var(--line)}
+  .gate-eyebrow{font-size:13px; color:var(--accent-ink); font-weight:500; margin:0 0 8px}
+  .gate-head h1{margin:0 0 8px; font-size:21px; font-weight:600; letter-spacing:-.01em}
+  .gate-head p{margin:0; font-size:14px; color:var(--ink-2); max-width:46ch}
+  .gate-body{padding:22px 32px 8px}
+  .current{
+    display:flex; align-items:center; gap:9px; font-size:13px; color:var(--ink-3);
+    margin:0 0 16px;
+  }
+  .current b{
+    color:var(--accent-ink); font-weight:600; background:var(--accent-weak);
+    border:1px solid #d9e0fb; padding:4px 12px; border-radius:999px; font-size:13px;
+  }
+  .unsaved{
+    display:none; align-items:center; font-size:12px; font-weight:600; color:var(--warn-ink);
+    background:var(--warn-bg); border:1px solid var(--warn-line); padding:3px 9px; border-radius:999px;
+  }
+
+  .opt{
+    display:block; border:1.5px solid var(--line-2); border-radius:var(--radius);
+    padding:16px 18px; margin-bottom:12px; cursor:pointer; position:relative;
+    transition:border-color .12s, background-color .12s;
+  }
+  .opt:hover:not(.is-disabled){border-color:#b9c0cd}
+  .opt.is-selected{border-color:var(--accent); background:var(--accent-weak)}
+  .opt.is-disabled{cursor:not-allowed; opacity:.55; background:#fafbfc}
+  .opt-top{display:flex; align-items:center; gap:12px}
+  .dot{
+    flex:0 0 auto; width:20px; height:20px; border-radius:50%;
+    border:2px solid #c3c9d4; background:#fff; position:relative; transition:border-color .12s;
+  }
+  .opt.is-selected .dot{border-color:var(--accent)}
+  .opt.is-selected .dot::after{
+    content:""; position:absolute; inset:3px; border-radius:50%; background:var(--accent);
+  }
+  .opt-title{font-size:15px; font-weight:600}
+  .opt-desc{margin:7px 0 0 32px; font-size:13px; color:var(--ink-2)}
+  .opt-note{
+    margin:9px 0 0 32px; font-size:12.5px; color:var(--warn-ink);
+    background:var(--warn-bg); border:1px solid var(--warn-line);
+    border-radius:7px; padding:7px 10px; display:none;
+  }
+  .opt.is-disabled .opt-note{display:block}
+  input[type=radio].sr{position:absolute; opacity:0; width:0; height:0}
+  .opt:focus-within{outline:2px solid var(--accent); outline-offset:2px}
+
+  /* 대상별 세부 단위 */
+  .detail{
+    margin:2px 2px 14px; padding:14px 16px; border:1px solid var(--line);
+    border-radius:var(--radius); background:#fafbfd; display:none;
+  }
+  .detail.show{display:block}
+  .detail h3{margin:0 0 4px; font-size:13px; font-weight:600}
+  .detail p{margin:0 0 12px; font-size:12.5px; color:var(--ink-2)}
+  .chips{display:flex; flex-wrap:wrap; gap:8px}
+  .chip{
+    font-size:13px; padding:6px 12px; border-radius:999px; border:1px solid var(--line-2);
+    background:#fff;
+  }
+  .chip.on{border-color:var(--accent); background:var(--accent-weak); color:var(--accent-ink); font-weight:500}
+  .chip.soon{color:var(--ink-3); background:#f3f4f7; border-style:dashed}
+  .chip.soon::after{content:" · 추후"; color:var(--ink-3)}
+
+  /* 푸터 */
+  .gate-foot{
+    display:flex; align-items:center; justify-content:flex-end; gap:12px;
+    padding:20px 32px 28px; border-top:1px solid var(--line); margin-top:8px;
+  }
+  .btn{font:inherit; font-size:14px; font-weight:500; border-radius:9px; padding:11px 18px; cursor:pointer; border:1px solid transparent}
+  .btn-primary{background:var(--dark); color:#fff}
+  .btn-primary:hover{background:var(--dark-hover)}
+  .btn-ghost{background:transparent; color:var(--ink-2); border-color:var(--line-2)}
+  .btn-ghost:hover{background:#f4f5f8}
+  .btn-lg{
+    font-size:16px; font-weight:600; padding:16px 40px; border-radius:12px;
+    box-shadow:0 6px 16px rgba(32,36,46,.22);
+  }
+  .btn-lg:hover{box-shadow:0 8px 20px rgba(32,36,46,.28)}
+  .btn-save{background:var(--accent-weak); color:var(--accent-ink); border-color:#cdd6f7}
+  .btn-save:hover:not(:disabled){background:#e3e8fb}
+  .btn:disabled{opacity:.45; cursor:not-allowed; box-shadow:none}
+
+  /* ── 되돌리기 모달 ───────────────────────────── */
+  .overlay{
+    position:fixed; inset:0; background:rgba(18,21,28,.46); display:none;
+    align-items:center; justify-content:center; padding:20px; z-index:50;
+  }
+  .overlay.show{display:flex}
+  .modal{
+    width:100%; max-width:460px; background:var(--panel); border-radius:16px;
+    box-shadow:0 20px 60px rgba(10,13,20,.3); overflow:hidden;
+    animation:pop .14s ease-out;
+  }
+  @media (prefers-reduced-motion:reduce){.modal{animation:none}}
+  @keyframes pop{from{transform:translateY(8px); opacity:0} to{transform:none; opacity:1}}
+  .modal-body{padding:26px 26px 8px}
+  .modal-warn{
+    display:inline-block; font-size:12px; font-weight:600; color:var(--warn-ink);
+    background:var(--warn-bg); border:1px solid var(--warn-line);
+    padding:4px 10px; border-radius:999px; margin-bottom:14px;
+  }
+  .modal h2{margin:0 0 10px; font-size:17px; font-weight:600}
+  .modal p{margin:0; font-size:14px; color:var(--ink-2)}
+  .modal p b{color:var(--ink); font-weight:600}
+  .modal-acts{display:flex; flex-direction:column; gap:10px; padding:20px 26px 24px}
+  .choice{
+    text-align:left; width:100%; border:1px solid var(--line-2); border-radius:11px;
+    padding:13px 15px; background:#fff; cursor:pointer; font:inherit;
+  }
+  .choice:hover{border-color:#b9c0cd; background:#fafbfd}
+  .choice .c-t{font-size:14px; font-weight:600; color:var(--ink)}
+  .choice .c-d{font-size:12.5px; color:var(--ink-2); margin-top:3px}
+  .choice.primary{border-color:var(--dark); background:var(--dark)}
+  .choice.primary .c-t{color:#fff}
+  .choice.primary .c-d{color:#c7ccd6}
+  .choice.cancel{border:0; background:none; text-align:center; color:var(--ink-3); padding:8px}
+  .choice.cancel:hover{background:none; color:var(--ink-2)}
+
+  /* ── 토스트 ──────────────────────────────────── */
+  .toast{
+    position:fixed; left:50%; bottom:28px; transform:translate(-50%,16px);
+    background:var(--dark); color:#fff; font-size:13.5px; padding:12px 18px;
+    border-radius:10px; box-shadow:0 10px 30px rgba(10,13,20,.28);
+    opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:60;
+    max-width:90vw;
+  }
+  .toast.show{opacity:1; transform:translate(-50%,0)}
+  .toast b{font-weight:600}
+
+  @media (max-width:520px){
+    .gate-head,.gate-body,.gate-foot{padding-left:20px; padding-right:20px}
+    .gate-foot{flex-wrap:wrap}
+    .state{flex:1 1 100%; margin:0 0 6px}
+  }
+</style>
+</head>
+<body>
+
+  <!-- 시연용 데모 컨트롤 (실제 제품 화면 아님) -->
+  <section class="demo-bar" aria-label="시연용 데모 컨트롤">
+    <h2>시연용 데모 컨트롤 — 분기 상태를 바꿔 보여주세요 (실제 화면 아님)</h2>
+    <div class="demo-row">
+      <div class="demo-field">
+        <span>계열사 정보</span>
+        <div class="seg" id="segAffiliate" role="group" aria-label="계열사 정보 존재 여부">
+          <button data-v="yes" aria-pressed="true">있음</button>
+          <button data-v="no" aria-pressed="false">없음</button>
+        </div>
+      </div>
+      <div class="demo-field">
+        <span>현재 대상별 설정 메뉴</span>
+        <div class="seg" id="segMenus" role="group" aria-label="대상별 공개로 설정된 메뉴 수">
+          <button data-v="0" aria-pressed="true">0개</button>
+          <button data-v="3" aria-pressed="false">3개</button>
+        </div>
+      </div>
+      <button class="demo-reset" id="btnReset">초기화</button>
+    </div>
+  </section>
+
+  <!-- 게이트 본체 -->
+  <main class="gate" role="dialog" aria-labelledby="gateTitle">
+    <div class="gate-head">
+      <h1 id="gateTitle">LABS Studio GATE</h1>
+      <p>LABS 에디터에서 메뉴 공개 설정 범위를 어떻게 사용할지 선택하세요. 이 설정은 마스터 권한의 교육담당자님에게만 노출되며, 진입할 때마다 다시 바꿀 수 있습니다.</p>
+    </div>
+
+    <div class="gate-body">
+      <div class="current">현재 설정 <b id="stateLabel">전체 공개만 사용</b><span class="unsaved" id="unsaved">저장되지 않은 변경</span></div>
+      <label class="opt is-selected" id="optAll">
+        <input class="sr" type="radio" name="scope" value="all" checked>
+        <span class="opt-top"><span class="dot"></span><span class="opt-title">전체 공개만 사용</span></span>
+        <span class="opt-desc">LABS 에디터에서 메뉴를 <b>전체 공개</b> 또는 <b>숨김</b>으로만 설정합니다.</span>
+      </label>
+
+      <label class="opt" id="optTargeted">
+        <input class="sr" type="radio" name="scope" value="targeted">
+        <span class="opt-top"><span class="dot"></span><span class="opt-title">대상별 공개 기능 사용</span></span>
+        <span class="opt-desc">특정 메뉴를 계열사 단위로 <b>선별 공개</b>할 수 있습니다. 전체 공개·숨김도 그대로 사용할 수 있어요.</span>
+        <span class="opt-note">이 연수원에는 계열사 정보가 없어 사용할 수 없습니다.</span>
+      </label>
+
+      <div class="detail" id="detail">
+        <h3>대상 단위</h3>
+        <p>대상별 공개 조건은 기업 계층(그룹사 · 계열사 · 하위 계열사) 구조를 기준으로 선택합니다.</p>
+        <div class="chips">
+          <span class="chip on">계열사 계층</span>
+          <span class="chip soon">부서</span>
+          <span class="chip soon">직급</span>
+          <span class="chip soon">대상 구분</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="gate-foot">
+      <button class="btn btn-ghost" id="btnCancel">변경 취소</button>
+      <button class="btn btn-save" id="btnSave" disabled>저장</button>
+      <button class="btn btn-primary btn-lg" id="btnEnter">LABS Studio 들어가기</button>
+    </div>
+  </main>
+
+  <!-- 되돌리기 모달 -->
+  <div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <div class="modal">
+      <div class="modal-body">
+        <span class="modal-warn">되돌리기 확인</span>
+        <h2 id="mTitle">전체 공개만 사용으로 변경할까요?</h2>
+        <p>변경하면 앞으로 <b>대상별 공개를 새로 설정할 수 없습니다.</b> 현재 대상별 공개로 설정된 메뉴 <b id="mCount">3개</b>를 어떻게 할까요?</p>
+      </div>
+      <div class="modal-acts">
+        <button class="choice primary" id="mAll">
+          <div class="c-t">① 모두 전체 공개로 전환</div>
+          <div class="c-d">대상별 메뉴를 전체 공개로 바꾸고, 저장된 조건을 완전 삭제합니다.</div>
+        </button>
+        <button class="choice" id="mKeep">
+          <div class="c-t">② 그대로 두기</div>
+          <div class="c-d">대상별 메뉴의 노출은 유지합니다. 각 메뉴는 LABS 에디터에서 직접 변경해야 합니다.</div>
+        </button>
+        <button class="choice cancel" id="mCancel">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+  var state = { affiliate:'yes', menus:3, scope:'all', savedScope:'all' };
+
+  var optAll = document.getElementById('optAll');
+  var optTargeted = document.getElementById('optTargeted');
+  var radAll = optAll.querySelector('input');
+  var radTargeted = optTargeted.querySelector('input');
+  var detail = document.getElementById('detail');
+  var stateLabel = document.getElementById('stateLabel');
+  var overlay = document.getElementById('overlay');
+  var mCount = document.getElementById('mCount');
+  var unsaved = document.getElementById('unsaved');
+  var btnSave = document.getElementById('btnSave');
+  var toast = document.getElementById('toast');
+  var toastT, pendingDone = null;
+
+  var LABEL = { all:'전체 공개만 사용', targeted:'대상별 공개 기능 사용' };
+
+  function showToast(html){
+    toast.innerHTML = html;
+    toast.classList.add('show');
+    clearTimeout(toastT);
+    toastT = setTimeout(function(){ toast.classList.remove('show'); }, 2600);
+  }
+
+  function dirty(){ return state.scope !== state.savedScope; }
+
+  function render(){
+    var disabled = state.affiliate === 'no';
+    optTargeted.classList.toggle('is-disabled', disabled);
+    radTargeted.disabled = disabled;
+
+    optAll.classList.toggle('is-selected', state.scope === 'all');
+    optTargeted.classList.toggle('is-selected', state.scope === 'targeted');
+    radAll.checked = state.scope === 'all';
+    radTargeted.checked = state.scope === 'targeted';
+    detail.classList.toggle('show', state.scope === 'targeted');
+
+    stateLabel.textContent = LABEL[state.savedScope];        // 저장된(현재) 설정
+    unsaved.style.display = dirty() ? 'inline-flex' : 'none';
+    btnSave.disabled = !dirty();
+  }
+
+  // 공개 범위 선택 — 라디오만 바꾸는 미저장 단계
+  optAll.addEventListener('click', function(e){ e.preventDefault(); pick('all'); });
+  optTargeted.addEventListener('click', function(e){
+    e.preventDefault();
+    if(state.affiliate === 'no') return;
+    pick('targeted');
+  });
+  function pick(next){ if(next === state.scope) return; state.scope = next; render(); }
+
+  // 저장(커밋) — 되돌리기 모달은 이 시점에 발생
+  function commit(onDone){
+    if(state.savedScope === 'targeted' && state.scope === 'all' && state.menus > 0){
+      pendingDone = onDone || null; openModal(); return;     // 대상별→전체공개만 & 메뉴 1개+
+    }
+    doSave();
+    if(onDone) onDone();
+  }
+  function doSave(){ state.savedScope = state.scope; render(); }
+  function runPending(){ var fn = pendingDone; pendingDone = null; if(fn) fn(); }
+
+  // 모달
+  function openModal(){
+    mCount.textContent = state.menus + '개';
+    overlay.classList.add('show');
+    document.getElementById('mAll').focus();
+  }
+  function closeModal(){ overlay.classList.remove('show'); }
+  function abortModal(){ state.scope = state.savedScope; render(); closeModal(); pendingDone = null; }
+
+  document.getElementById('mAll').addEventListener('click', function(){
+    state.scope = 'all'; state.menus = 0;           // 전체 공개 전환 + 조건 완전 삭제
+    doSave(); syncMenuSeg(); closeModal();
+    showToast('대상별 메뉴를 모두 전체 공개로 전환하고 <b>조건을 삭제</b>했습니다.');
+    runPending();
+  });
+  document.getElementById('mKeep').addEventListener('click', function(){
+    state.scope = 'all';                            // 게이트만 전환, 메뉴 노출은 유지
+    doSave(); closeModal();
+    showToast('저장했습니다. 대상별 메뉴는 LABS 에디터에서 <b>직접 변경</b>해 주세요.');
+    runPending();
+  });
+  document.getElementById('mCancel').addEventListener('click', function(){
+    abortModal();                                   // 취소 → 저장된 설정 유지
+    showToast('변경을 취소했습니다. <b>' + LABEL[state.savedScope] + '</b>을 유지합니다.');
+  });
+  overlay.addEventListener('click', function(e){ if(e.target === overlay) abortModal(); });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && overlay.classList.contains('show')) abortModal(); });
+
+  // 저장 / 진입 / 변경 취소
+  btnSave.addEventListener('click', function(){
+    if(!dirty()) return;
+    commit(function(){ showToast('설정을 저장했습니다 · <b>' + LABEL[state.savedScope] + '</b>'); });
+  });
+  document.getElementById('btnEnter').addEventListener('click', function(){
+    commit(function(){ showToast('LABS Studio에 진입합니다 · 공개 범위: <b>' + LABEL[state.savedScope] + '</b>'); });
+  });
+  document.getElementById('btnCancel').addEventListener('click', function(){
+    if(!dirty()){ showToast('변경 사항이 없습니다.'); return; }
+    state.scope = state.savedScope; render();        // 미저장 변경 되돌리기
+    showToast('변경을 되돌렸습니다.');
+  });
+
+  // ── 데모 컨트롤 ──
+  function wireSeg(id, apply){
+    var seg = document.getElementById(id);
+    seg.addEventListener('click', function(e){
+      var b = e.target.closest('button'); if(!b) return;
+      seg.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x===b ? 'true':'false'); });
+      apply(b.getAttribute('data-v'));
+    });
+  }
+  function syncMenuSeg(){
+    document.querySelectorAll('#segMenus button').forEach(function(x){
+      x.setAttribute('aria-pressed', x.getAttribute('data-v') === String(state.menus) ? 'true':'false');
+    });
+  }
+  wireSeg('segAffiliate', function(v){
+    state.affiliate = v;
+    if(v === 'no'){ state.scope = 'all'; state.savedScope = 'all'; }  // 계열사 없으면 전체공개만로 고정
+    render();
+  });
+  wireSeg('segMenus', function(v){ state.menus = parseInt(v,10); });
+
+  document.getElementById('btnReset').addEventListener('click', function(){
+    state = { affiliate:'yes', menus:3, scope:'all', savedScope:'all' };
+    pendingDone = null; closeModal();
+    document.querySelectorAll('#segAffiliate button').forEach(function(x){ x.setAttribute('aria-pressed', x.getAttribute('data-v')==='yes'?'true':'false'); });
+    syncMenuSeg();
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
